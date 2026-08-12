@@ -1,4 +1,8 @@
-# Effect Monorepo
+<p align="center">
+  <img src="docs/assets/effect-monorepo-avatar.png" alt="Effect Monorepo avatar" width="240" />
+</p>
+
+<h1 align="center">Effect Monorepo</h1>
 
 A small, runnable north star for structuring TypeScript services with Effect.
 
