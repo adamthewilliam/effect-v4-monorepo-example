@@ -81,9 +81,10 @@ const SystemRoutesBaseLive = HttpApiBuilder.group(
       .handle("root", () => Effect.succeed({ service: "dex-trades", status: "ok" } as const))
       .handle("healthz", () => Effect.succeed({ status: "ok" } as const))
       .handle("readyz", () =>
-        service
-          .readiness()
-          .pipe(Effect.as({ status: "ready" } as const), Effect.mapError(toReadinessErrorResponse)),
+        service.readiness.pipe(
+          Effect.as({ status: "ready" } as const),
+          Effect.mapError(toReadinessErrorResponse),
+        ),
       );
   }),
 );
@@ -99,7 +100,7 @@ const DexTradesRoutesBaseLive = HttpApiBuilder.group(
     const service = yield* DexTradeService;
 
     return handlers.handle("leaderboard", () =>
-      service.leaderboard().pipe(
+      service.leaderboard.pipe(
         Effect.map((leaderboard) => LeaderboardResponse.make({ leaderboard })),
         Effect.catchTags({
           DatabaseUnavailable: () => Effect.fail(toServiceUnavailableErrorResponse()),

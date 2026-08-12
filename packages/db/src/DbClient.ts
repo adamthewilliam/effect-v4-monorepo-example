@@ -15,16 +15,14 @@ const passthroughPgTypeIds = [
   1231, // numeric[]
 ];
 
-export function createDb() {
-  return PgDrizzle.makeWithDefaults();
-}
+export const createDb = PgDrizzle.makeWithDefaults();
 
-export type Db = Effect.Success<ReturnType<typeof createDb>>;
+export type Db = Effect.Success<typeof createDb>;
 
 export class DbClient extends Context.Service<DbClient, Db>()("@effect-monorepo/db/DbClient") {}
 
 export function makeDbLayer(databaseUrl: Redacted.Redacted<string> | string) {
-  return Layer.effect(DbClient, createDb()).pipe(
+  return Layer.effect(DbClient, createDb).pipe(
     Layer.provide(
       PgClient.layer({
         url: Redacted.isRedacted(databaseUrl) ? databaseUrl : Redacted.make(databaseUrl),

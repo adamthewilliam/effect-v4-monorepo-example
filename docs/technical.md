@@ -7,6 +7,7 @@ The runnable workspace is the repository root.
 - Bun and TypeScript
 - Effect 4 beta
 - Effect HttpApi on Bun
+- Effect TSGO for native TypeScript 7 Effect diagnostics and refactors
 - KafkaJS for event consumption
 - PostgreSQL with Drizzle and Effect SQL
 - Turborepo for workspace tasks
@@ -47,6 +48,12 @@ cp apps/ingester/.env.example apps/ingester/.env
 bun run docker:up
 bun run db:migrate
 ```
+
+`bun install` runs `effect-tsgo patch --typescript --oxlint`, which enables the
+Effect language service in TypeScript-Go and the Effect-aware Oxlint bridge.
+The shared `packages/config/tsconfig.base.json` contains the language-service
+plugin configuration, and the workspace VS Code settings select the native
+TypeScript-Go service.
 
 The Compose file provides Kafka and PostgreSQL. The ingester expects records on
 the `dex.trades` topic; a producer can be supplied independently.

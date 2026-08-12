@@ -16,24 +16,23 @@ import { DexTradeService } from "./DexTradeService";
 
 describe("DexTradeService", () => {
   it.effect("reports readiness when the repository is reachable", () =>
-    DexTradeService.use((service) => service.readiness()).pipe(Effect.provide(testLayer())),
+    DexTradeService.use((service) => service.readiness).pipe(Effect.provide(testLayer())),
   );
 
   it.effect("maps repository readiness failures to DatabaseUnavailable", () =>
     Effect.gen(function* () {
       const error = yield* Effect.flip(
-        DexTradeService.use((service) => service.readiness()).pipe(
+        DexTradeService.use((service) => service.readiness).pipe(
           Effect.provide(
             testLayer({
-              readiness: () =>
-                Effect.fail(
-                  new DbReadinessError({
-                    message: "Database readiness check failed",
-                    operation: "readiness",
-                    cause: new Error("database offline"),
-                    kind: "transient",
-                  }),
-                ),
+              readiness: Effect.fail(
+                new DbReadinessError({
+                  message: "Database readiness check failed",
+                  operation: "readiness",
+                  cause: new Error("database offline"),
+                  kind: "transient",
+                }),
+              ),
             }),
           ),
         ),
@@ -51,18 +50,17 @@ describe("DexTradeService", () => {
   it.effect("maps retryable leaderboard failures to DatabaseUnavailable", () =>
     Effect.gen(function* () {
       const error = yield* Effect.flip(
-        DexTradeService.use((service) => service.leaderboard()).pipe(
+        DexTradeService.use((service) => service.leaderboard).pipe(
           Effect.provide(
             testLayer({
-              leaderboard: () =>
-                Effect.fail(
-                  new DbQueryError({
-                    message: "Database query failed",
-                    operation: "leaderboard",
-                    cause: new Error("database offline"),
-                    kind: "transient",
-                  }),
-                ),
+              leaderboard: Effect.fail(
+                new DbQueryError({
+                  message: "Database query failed",
+                  operation: "leaderboard",
+                  cause: new Error("database offline"),
+                  kind: "transient",
+                }),
+              ),
             }),
           ),
         ),
@@ -80,18 +78,17 @@ describe("DexTradeService", () => {
   it.effect("keeps permanent leaderboard failures as query failures", () =>
     Effect.gen(function* () {
       const error = yield* Effect.flip(
-        DexTradeService.use((service) => service.leaderboard()).pipe(
+        DexTradeService.use((service) => service.leaderboard).pipe(
           Effect.provide(
             testLayer({
-              leaderboard: () =>
-                Effect.fail(
-                  new DbQueryError({
-                    message: "Database query failed",
-                    operation: "leaderboard",
-                    cause: new Error("invalid query"),
-                    kind: "fatal",
-                  }),
-                ),
+              leaderboard: Effect.fail(
+                new DbQueryError({
+                  message: "Database query failed",
+                  operation: "leaderboard",
+                  cause: new Error("invalid query"),
+                  kind: "fatal",
+                }),
+              ),
             }),
           ),
         ),
@@ -110,8 +107,8 @@ describe("DexTradeService", () => {
 function testLayer(overrides: Partial<DexTradeRepository["Service"]> = {}) {
   const base: DexTradeRepository["Service"] = {
     upsert: () => Effect.succeed(fixtureTrade()),
-    leaderboard: () => Effect.succeed([]),
-    readiness: () => Effect.void,
+    leaderboard: Effect.succeed([]),
+    readiness: Effect.void,
   };
 
   return Layer.mergeAll(

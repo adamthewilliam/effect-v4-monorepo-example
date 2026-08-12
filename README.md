@@ -11,6 +11,16 @@ an Effect-based ingester consumes Kafka events and persists validated domain
 data. The point is the shape of the monorepo and its boundaries, not the
 trading domain.
 
+## Tooling
+
+- TypeScript 7 for the workspace compiler.
+- [Effect TSGO](https://github.com/Effect-TS/tsgo) for Effect-aware diagnostics
+  and refactors. `bun install` patches the native TypeScript and Oxlint
+  integrations automatically.
+- [Oxlint](https://oxc.rs/docs/guide/usage/linter) and
+  [Oxfmt](https://oxc.rs/docs/guide/usage/formatter) for linting and formatting.
+  Run both with `bun run check`.
+
 ## Repository layout
 
 - `apps/server` — Effect HttpApi, health routes, OpenAPI, and Scalar documentation.

@@ -10,8 +10,8 @@ import { DatabaseQueryFailedError, DatabaseUnavailableError } from "./DexTradeEr
 export class DexTradeService extends Context.Service<
   DexTradeService,
   {
-    readonly readiness: () => Effect.Effect<void, DatabaseUnavailableError>;
-    readonly leaderboard: () => Effect.Effect<
+    readonly readiness: Effect.Effect<void, DatabaseUnavailableError>;
+    readonly leaderboard: Effect.Effect<
       LeaderboardRow[],
       DatabaseUnavailableError | DatabaseQueryFailedError
     >;
@@ -22,31 +22,27 @@ export class DexTradeService extends Context.Service<
     Effect.gen(function* () {
       const trades = yield* DexTradeRepository;
 
-      const readiness = Effect.fn("DexTradeService.readiness")(function* () {
-        return yield* trades.readiness().pipe(
-          Effect.tapError((error) =>
-            Effect.logWarning("Database readiness check failed", {
-              operation: error.operation,
-              kind: error.kind,
-              cause: error.cause,
-            }),
-          ),
-          Effect.mapError(toDatabaseUnavailable),
-        );
-      });
+      const readiness = trades.readiness.pipe(
+        Effect.tapError((error) =>
+          Effect.logWarning("Database readiness check failed", {
+            operation: error.operation,
+            kind: error.kind,
+            cause: error.cause,
+          }),
+        ),
+        Effect.mapError(toDatabaseUnavailable),
+      );
 
-      const leaderboard = Effect.fn("DexTradeService.leaderboard")(function* () {
-        return yield* trades.leaderboard().pipe(
-          Effect.tapError((error) =>
-            Effect.logError("Database leaderboard query failed", {
-              operation: error.operation,
-              kind: error.kind,
-              cause: error.cause,
-            }),
-          ),
-          Effect.mapError(toDatabaseQueryFailure),
-        );
-      });
+      const leaderboard = trades.leaderboard.pipe(
+        Effect.tapError((error) =>
+          Effect.logError("Database leaderboard query failed", {
+            operation: error.operation,
+            kind: error.kind,
+            cause: error.cause,
+          }),
+        ),
+        Effect.mapError(toDatabaseQueryFailure),
+      );
 
       return DexTradeService.of({ readiness, leaderboard });
     }),

@@ -46,9 +46,7 @@ export const parseDexTradeMessage = Effect.fn("parseDexTradeMessage")(function* 
   rawMessage: string,
   source: KafkaSource,
 ): Effect.fn.Return<NewDexTrade, ParseDexTradeMessageError> {
-  const parsedJson = yield* Schema.decodeUnknownEffect(Schema.UnknownFromJsonString)(
-    rawMessage,
-  ).pipe(
+  const parsedJson = yield* Schema.decodeEffect(Schema.UnknownFromJsonString)(rawMessage).pipe(
     Effect.catchTag(
       "SchemaError",
       (cause) =>

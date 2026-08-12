@@ -87,8 +87,8 @@ export class DexTradeRepository extends Context.Service<
   DexTradeRepository,
   {
     readonly upsert: (trade: NewDexTrade) => Effect.Effect<DexTrade, DbPersistError>;
-    readonly leaderboard: () => Effect.Effect<LeaderboardRow[], DbQueryError>;
-    readonly readiness: () => Effect.Effect<void, DbReadinessError>;
+    readonly leaderboard: Effect.Effect<LeaderboardRow[], DbQueryError>;
+    readonly readiness: Effect.Effect<void, DbReadinessError>;
   }
 >()("@effect-monorepo/db/DexTradeRepository") {
   static readonly layer: Layer.Layer<DexTradeRepository, never, DbClient> = Layer.effect(
@@ -131,7 +131,7 @@ export class DexTradeRepository extends Context.Service<
         return row[0];
       });
 
-      const leaderboard = Effect.fn("DexTradeRepository.leaderboard")(function* () {
+      const leaderboard = Effect.gen(function* () {
         const rows = yield* database
           .select({
             rank: sql<number>`row_number() over (order by sum(${dexTrades.pnlUsd}) desc)`,
@@ -155,9 +155,7 @@ export class DexTradeRepository extends Context.Service<
         );
       });
 
-      const readiness = Effect.fn("DexTradeRepository.readiness")(function* () {
-        yield* database.execute(sql`select 1`).pipe(Effect.mapError(mapReadinessError));
-      });
+      const readiness = database.execute(sql`select 1`).pipe(Effect.mapError(mapReadinessError));
 
       return DexTradeRepository.of({
         upsert,

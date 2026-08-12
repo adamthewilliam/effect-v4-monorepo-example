@@ -364,8 +364,8 @@ function batchEffect(
 function testLayer(overrides: Partial<DexTradeRepository["Service"]> = {}) {
   const base: DexTradeRepository["Service"] = {
     upsert: () => Effect.succeed(fixtureTrade()),
-    leaderboard: () => Effect.succeed([]),
-    readiness: () => Effect.void,
+    leaderboard: Effect.succeed([]),
+    readiness: Effect.void,
   };
 
   return Layer.mergeAll(
