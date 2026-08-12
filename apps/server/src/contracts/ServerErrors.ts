@@ -61,10 +61,12 @@ export const ReadinessUnavailableErrorResponse = Schema.Struct({
     description: "The service process is healthy, but a required dependency is unavailable.",
   });
 
-export const ReadinessErrorResponses = [ReadinessUnavailableErrorResponse] as const;
+export const ReadinessErrorResponses = [
+  ReadinessUnavailableErrorResponse,
+  InternalServerErrorResponse,
+] as const;
 
-export const ReadinessErrorResponse = Schema.Union([ReadinessUnavailableErrorResponse]);
-export type ReadinessErrorResponse = typeof ReadinessErrorResponse.Type;
+export type ReadinessErrorResponse = typeof ReadinessUnavailableErrorResponse.Type;
 export type InternalServerErrorResponseBody = typeof InternalServerErrorResponse.Type;
 export type InvalidRequestErrorResponseBody = typeof InvalidRequestErrorResponse.Type;
 export type ServiceUnavailableErrorResponseBody = typeof ServiceUnavailableErrorResponse.Type;

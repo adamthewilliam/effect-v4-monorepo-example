@@ -1,16 +1,18 @@
+import "dotenv/config";
 import { DexTradeRepository, makeDbLayer } from "@effect-monorepo/db";
 import { IngesterEnv } from "@effect-monorepo/env/ingester";
 import { Effect, Layer, ManagedRuntime } from "effect";
 import { Kafka } from "kafkajs";
 
+import { KafkaConsumerError } from "./contracts/IngesterErrors";
 import { processDexTradeBatch } from "./kafka/KafkaBatchProcessor";
 import { DexTradeIngesterService } from "./services/DexTradeIngesterService";
 
 const env = await Effect.runPromise(IngesterEnv.make);
 const ingesterDbLayer = makeDbLayer(env.DATABASE_URL);
 const ingesterLayer = DexTradeIngesterService.layer.pipe(
-  Layer.provideMerge(DexTradeRepository.layer),
-  Layer.provideMerge(ingesterDbLayer),
+  Layer.provide(DexTradeRepository.layer),
+  Layer.provide(ingesterDbLayer),
 );
 const ingesterRuntime = ManagedRuntime.make(ingesterLayer);
 const kafka = new Kafka({
@@ -29,11 +31,35 @@ registerShutdownHandlers();
 await startConsumer();
 
 async function startConsumer() {
-  await kafkaConsumer.connect();
-  await kafkaConsumer.subscribe({
-    topic: env.KAFKA_TOPIC,
-    fromBeginning: env.KAFKA_FROM_BEGINNING,
-  });
+  await ingesterRuntime.runPromise(
+    Effect.tryPromise({
+      try: () => kafkaConsumer.connect(),
+      catch: (cause) =>
+        new KafkaConsumerError({
+          message: "Failed to connect Kafka consumer",
+          operation: "connect",
+          cause,
+          action: "halt",
+        }),
+    }),
+  );
+
+  await ingesterRuntime.runPromise(
+    Effect.tryPromise({
+      try: () =>
+        kafkaConsumer.subscribe({
+          topic: env.KAFKA_TOPIC,
+          fromBeginning: env.KAFKA_FROM_BEGINNING,
+        }),
+      catch: (cause) =>
+        new KafkaConsumerError({
+          message: "Failed to subscribe Kafka consumer",
+          operation: "subscribe",
+          cause,
+          action: "halt",
+        }),
+    }),
+  );
 
   await ingesterRuntime.runPromise(
     Effect.logInfo(
@@ -42,29 +68,41 @@ async function startConsumer() {
     ),
   );
 
-  await kafkaConsumer.run({
-    // Manual batch commits let us skip poison messages without advancing past DB failures.
-    autoCommit: false,
-    eachBatchAutoResolve: false,
-    eachBatch: (payload) => {
-      // KafkaJS calls us with a Promise API; ManagedRuntime is the thin Effect bridge.
-      const batchRun = ingesterRuntime
-        .runPromise(
-          processDexTradeBatch(
-            { consumer: kafkaConsumer, isShuttingDown: () => shuttingDown },
-            payload,
-          ),
-        )
-        .finally(() => {
-          if (activeBatch === batchRun) {
-            activeBatch = undefined;
-          }
-        });
+  await ingesterRuntime.runPromise(
+    Effect.tryPromise({
+      try: () =>
+        kafkaConsumer.run({
+          // Manual batch commits let us skip poison messages without advancing past DB failures.
+          autoCommit: false,
+          eachBatchAutoResolve: false,
+          eachBatch: (payload) => {
+            // KafkaJS calls us with a Promise API; ManagedRuntime is the thin Effect bridge.
+            const batchRun = ingesterRuntime
+              .runPromise(
+                processDexTradeBatch(
+                  { consumer: kafkaConsumer, isShuttingDown: () => shuttingDown },
+                  payload,
+                ),
+              )
+              .finally(() => {
+                if (activeBatch === batchRun) {
+                  activeBatch = undefined;
+                }
+              });
 
-      activeBatch = batchRun;
-      return batchRun;
-    },
-  });
+            activeBatch = batchRun;
+            return batchRun;
+          },
+        }),
+      catch: (cause) =>
+        new KafkaConsumerError({
+          message: "Kafka consumer run failed",
+          operation: "run",
+          cause,
+          action: "halt",
+        }),
+    }),
+  );
 }
 
 async function shutdown(signal: string) {

@@ -1,8 +1,10 @@
 import {
+  DbQueryError,
   DbReadinessError,
   AggregatorName,
   DexTradeId,
   DexTradeRepository,
+  PnlUsdDecimal,
   SignerAddress,
   TokenAmountDecimal,
   UsdAmountDecimal,
@@ -27,8 +29,9 @@ describe("DexTradeService", () => {
                 Effect.fail(
                   new DbReadinessError({
                     message: "Database readiness check failed",
+                    operation: "readiness",
                     cause: new Error("database offline"),
-                    retryable: true,
+                    kind: "transient",
                   }),
                 ),
             }),
@@ -41,6 +44,65 @@ describe("DexTradeService", () => {
       }
 
       expect(error.message).toBe("Database unavailable");
+      expect(error.operation).toBe("readiness");
+    }),
+  );
+
+  it.effect("maps retryable leaderboard failures to DatabaseUnavailable", () =>
+    Effect.gen(function* () {
+      const error = yield* Effect.flip(
+        DexTradeService.use((service) => service.leaderboard()).pipe(
+          Effect.provide(
+            testLayer({
+              leaderboard: () =>
+                Effect.fail(
+                  new DbQueryError({
+                    message: "Database query failed",
+                    operation: "leaderboard",
+                    cause: new Error("database offline"),
+                    kind: "transient",
+                  }),
+                ),
+            }),
+          ),
+        ),
+      );
+
+      expect(error._tag).toBe("DatabaseUnavailable");
+      if (error._tag !== "DatabaseUnavailable") {
+        throw new Error(`Expected DatabaseUnavailable, got ${error._tag}`);
+      }
+      expect(error.operation).toBe("leaderboard");
+      expect(error.cause).toBeInstanceOf(Error);
+    }),
+  );
+
+  it.effect("keeps permanent leaderboard failures as query failures", () =>
+    Effect.gen(function* () {
+      const error = yield* Effect.flip(
+        DexTradeService.use((service) => service.leaderboard()).pipe(
+          Effect.provide(
+            testLayer({
+              leaderboard: () =>
+                Effect.fail(
+                  new DbQueryError({
+                    message: "Database query failed",
+                    operation: "leaderboard",
+                    cause: new Error("invalid query"),
+                    kind: "fatal",
+                  }),
+                ),
+            }),
+          ),
+        ),
+      );
+
+      expect(error._tag).toBe("DatabaseQueryFailed");
+      if (error._tag !== "DatabaseQueryFailed") {
+        throw new Error(`Expected DatabaseQueryFailed, got ${error._tag}`);
+      }
+      expect(error.operation).toBe("leaderboard");
+      expect(error.cause).toBeInstanceOf(Error);
     }),
   );
 });
@@ -75,7 +137,7 @@ function fixtureTrade(): DexTrade {
     usdBoughtAmount: UsdAmountDecimal.make("1207.83"),
     aggregator: AggregatorName.make("orca"),
     txFeeUsd: UsdAmountDecimal.make("3.24"),
-    pnlUsd: "0",
+    pnlUsd: PnlUsdDecimal.make("0"),
     createdAt: now,
     updatedAt: now,
   };

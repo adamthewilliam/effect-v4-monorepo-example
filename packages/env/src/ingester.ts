@@ -1,4 +1,3 @@
-import "dotenv/config";
 import { Config, Context, Effect, Layer, Schema } from "effect";
 
 export class IngesterEnv extends Context.Service<IngesterEnv>()(

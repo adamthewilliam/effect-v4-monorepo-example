@@ -1,4 +1,4 @@
-import { SignerAddress } from "@effect-monorepo/db/schema/index";
+import { PnlUsdDecimal, SignerAddress } from "@effect-monorepo/db";
 import { Schema } from "effect";
 
 export const RootResponse = Schema.Struct({
@@ -26,10 +26,10 @@ export const ReadinessResponse = Schema.Struct({
 export const LeaderboardResponse = Schema.Struct({
   leaderboard: Schema.Array(
     Schema.Struct({
-      rank: Schema.Number,
+      rank: Schema.Int,
       signer: SignerAddress,
-      totalPnlUsd: Schema.Number,
-      tradeCount: Schema.Number,
+      totalPnlUsd: PnlUsdDecimal,
+      tradeCount: Schema.Int,
     }),
   ),
 }).annotate({

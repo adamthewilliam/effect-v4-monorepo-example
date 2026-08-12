@@ -27,7 +27,7 @@ monorepo can separate:
 2. domain schemas from persistence details;
 3. runtime configuration from business logic;
 4. infrastructure wiring from reusable modules;
-5. integration tests from unit-level service tests.
+5. a clear path from unit-level service tests to integration smoke tests.
 
 The domain can change without changing the architectural rules. A future
 example could process payments, events, files, or telemetry and keep the same

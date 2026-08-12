@@ -5,13 +5,16 @@ import {
   LeaderboardRow,
 } from "@effect-monorepo/db";
 import { Context, Effect, Layer } from "effect";
-import { DatabaseUnavailableError } from "./DexTradeErrors";
+import { DatabaseQueryFailedError, DatabaseUnavailableError } from "./DexTradeErrors";
 
 export class DexTradeService extends Context.Service<
   DexTradeService,
   {
     readonly readiness: () => Effect.Effect<void, DatabaseUnavailableError>;
-    readonly leaderboard: () => Effect.Effect<LeaderboardRow[], DatabaseUnavailableError>;
+    readonly leaderboard: () => Effect.Effect<
+      LeaderboardRow[],
+      DatabaseUnavailableError | DatabaseQueryFailedError
+    >;
   }
 >()("@effect-monorepo/server/DexTradeService") {
   static readonly layer: Layer.Layer<DexTradeService, never, DexTradeRepository> = Layer.effect(
@@ -20,11 +23,29 @@ export class DexTradeService extends Context.Service<
       const trades = yield* DexTradeRepository;
 
       const readiness = Effect.fn("DexTradeService.readiness")(function* () {
-        return yield* trades.readiness().pipe(Effect.mapError(toDatabaseUnavailable));
+        return yield* trades.readiness().pipe(
+          Effect.tapError((error) =>
+            Effect.logWarning("Database readiness check failed", {
+              operation: error.operation,
+              kind: error.kind,
+              cause: error.cause,
+            }),
+          ),
+          Effect.mapError(toDatabaseUnavailable),
+        );
       });
 
       const leaderboard = Effect.fn("DexTradeService.leaderboard")(function* () {
-        return yield* trades.leaderboard().pipe(Effect.mapError(toDatabaseUnavailable));
+        return yield* trades.leaderboard().pipe(
+          Effect.tapError((error) =>
+            Effect.logError("Database leaderboard query failed", {
+              operation: error.operation,
+              kind: error.kind,
+              cause: error.cause,
+            }),
+          ),
+          Effect.mapError(toDatabaseQueryFailure),
+        );
       });
 
       return DexTradeService.of({ readiness, leaderboard });
@@ -32,5 +53,24 @@ export class DexTradeService extends Context.Service<
   );
 }
 
-const toDatabaseUnavailable = (_error: DbQueryError | DbReadinessError): DatabaseUnavailableError =>
-  new DatabaseUnavailableError({ message: "Database unavailable" });
+const toDatabaseUnavailable = (error: DbReadinessError): DatabaseUnavailableError =>
+  new DatabaseUnavailableError({
+    message: "Database unavailable",
+    operation: error.operation,
+    cause: error.cause,
+  });
+
+const toDatabaseQueryFailure = (
+  error: DbQueryError,
+): DatabaseUnavailableError | DatabaseQueryFailedError =>
+  error.kind === "transient"
+    ? new DatabaseUnavailableError({
+        message: "Database unavailable",
+        operation: error.operation,
+        cause: error.cause,
+      })
+    : new DatabaseQueryFailedError({
+        message: "Database query failed",
+        operation: error.operation,
+        cause: error.cause,
+      });

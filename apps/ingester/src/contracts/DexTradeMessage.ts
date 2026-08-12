@@ -14,14 +14,16 @@ import {
   type ParseDexTradeMessageError,
 } from "./IngesterErrors";
 
-const TokenAmountInput = Schema.Finite.check(Schema.isGreaterThan(0)).pipe(
-  Schema.brand("@effect-monorepo/TokenAmountInput"),
+const TokenAmountInput = TokenAmountDecimal.pipe(
+  Schema.check(
+    Schema.isPattern(/^(?:[1-9]\d*(?:\.\d+)?|0+\.\d*[1-9]\d*)$/, {
+      message: "Expected a positive decimal string",
+    }),
+  ),
 );
 type TokenAmountInput = typeof TokenAmountInput.Type;
 
-const UsdAmountInput = Schema.Finite.check(Schema.isGreaterThanOrEqualTo(0)).pipe(
-  Schema.brand("@effect-monorepo/UsdAmountInput"),
-);
+const UsdAmountInput = UsdAmountDecimal;
 type UsdAmountInput = typeof UsdAmountInput.Type;
 
 export const dexTradeMessageSchema = Schema.Struct({
@@ -74,17 +76,11 @@ export const parseDexTradeMessage = Effect.fn("parseDexTradeMessage")(function* 
     uniqueId: message.unique_id,
     blockTimestamp: DateTime.toDateUtc(message.block_timestamp),
     signer: message.signer,
-    tokenSoldAmount: tokenAmountDecimalFromInput(message.token_sold_amount),
-    usdSoldAmount: usdAmountDecimalFromInput(message.usd_sold_amount),
-    tokenBoughtAmount: tokenAmountDecimalFromInput(message.token_bought_amount),
-    usdBoughtAmount: usdAmountDecimalFromInput(message.usd_bought_amount),
+    tokenSoldAmount: message.token_sold_amount,
+    usdSoldAmount: message.usd_sold_amount,
+    tokenBoughtAmount: message.token_bought_amount,
+    usdBoughtAmount: message.usd_bought_amount,
     aggregator: message.aggregator,
-    txFeeUsd: usdAmountDecimalFromInput(message.tx_fee_usd),
+    txFeeUsd: message.tx_fee_usd,
   };
 });
-
-const tokenAmountDecimalFromInput = (amount: TokenAmountInput): TokenAmountDecimal =>
-  TokenAmountDecimal.make(String(amount));
-
-const usdAmountDecimalFromInput = (amount: UsdAmountInput): UsdAmountDecimal =>
-  UsdAmountDecimal.make(String(amount));

@@ -4,5 +4,16 @@ export class DatabaseUnavailableError extends Schema.TaggedErrorClass<DatabaseUn
   "DatabaseUnavailable",
   {
     message: Schema.String,
+    operation: Schema.String,
+    cause: Schema.Defect(),
+  },
+) {}
+
+export class DatabaseQueryFailedError extends Schema.TaggedErrorClass<DatabaseQueryFailedError>()(
+  "DatabaseQueryFailed",
+  {
+    message: Schema.String,
+    operation: Schema.String,
+    cause: Schema.Defect(),
   },
 ) {}

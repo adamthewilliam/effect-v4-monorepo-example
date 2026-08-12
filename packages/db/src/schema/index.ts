@@ -12,6 +12,10 @@ const NonNegativeDecimalString = Schema.String.check(
   Schema.isPattern(/^\d+(?:\.\d+)?$/, { message: "Expected a non-negative decimal string" }),
 );
 
+const SignedDecimalString = Schema.String.check(
+  Schema.isPattern(/^-?\d+(?:\.\d+)?$/, { message: "Expected a signed decimal string" }),
+);
+
 export const DexTradeId = Schema.String.check(Schema.isUUID(4)).pipe(
   Schema.brand("@effect-monorepo/DexTradeId"),
 );
@@ -33,6 +37,11 @@ export const UsdAmountDecimal = NonNegativeDecimalString.pipe(
   Schema.brand("@effect-monorepo/UsdAmountDecimal"),
 );
 export type UsdAmountDecimal = typeof UsdAmountDecimal.Type;
+
+export const PnlUsdDecimal = SignedDecimalString.pipe(
+  Schema.brand("@effect-monorepo/PnlUsdDecimal"),
+);
+export type PnlUsdDecimal = typeof PnlUsdDecimal.Type;
 
 export const dexTrades = pgTable(
   "dex_trades",
@@ -57,7 +66,7 @@ export const dexTrades = pgTable(
       .$type<UsdAmountDecimal>()
       .notNull(),
     pnlUsd: numeric("pnl_usd", { precision: 38, scale: 8 })
-      .$type<string>()
+      .$type<PnlUsdDecimal>()
       .default(sql`0`)
       .notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),

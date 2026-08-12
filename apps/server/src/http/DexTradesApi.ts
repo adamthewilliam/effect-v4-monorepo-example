@@ -16,22 +16,25 @@ import {
   InternalServerErrorResponse,
   InvalidRequestErrorResponse,
   ReadinessErrorResponses,
+  ServiceUnavailableErrorResponse,
   toInternalServerErrorResponse,
   toReadinessErrorResponse,
+  toServiceUnavailableErrorResponse,
 } from "../contracts/ServerErrors";
 import { DexTradeService } from "../services/DexTradeService";
 import { InvalidRequestMiddleware, InvalidRequestMiddlewareLive } from "./InvalidRequestMiddleware";
-import type { LeaderboardRow } from "@effect-monorepo/db/repositories/DexTradeRepository";
 
 export const SystemGroup = HttpApiGroup.make("system", { topLevel: true })
   .add(
     HttpApiEndpoint.get("root", "/", {
       success: RootResponse,
+      error: InternalServerErrorResponse,
     })
       .annotate(OpenApi.Summary, "Get API status")
       .annotate(OpenApi.Description, "Returns the API identity and current status."),
     HttpApiEndpoint.get("healthz", "/healthz", {
       success: HealthResponse,
+      error: InternalServerErrorResponse,
     })
       .annotate(OpenApi.Summary, "Check process liveness")
       .annotate(OpenApi.Description, "Returns ok when the HTTP service is alive."),
@@ -48,7 +51,7 @@ export const DexTradesGroup = HttpApiGroup.make("dex-trades", { topLevel: true }
   .add(
     HttpApiEndpoint.get("leaderboard", "/leaderboard", {
       success: LeaderboardResponse,
-      error: InternalServerErrorResponse,
+      error: [InternalServerErrorResponse, ServiceUnavailableErrorResponse],
     }),
   )
   .annotate(OpenApi.Description, "DEX endpoints for operations on DEX trades.");
@@ -89,17 +92,6 @@ export const SystemRoutesLive = SystemRoutesBaseLive.pipe(
   Layer.provide(InvalidRequestMiddlewareLive),
 );
 
-const mapToLeaderboardResponse = (leaderboard: LeaderboardRow[]) => {
-  return LeaderboardResponse.make({
-    leaderboard: leaderboard.map((row) => ({
-      rank: row.rank,
-      signer: row.signer,
-      totalPnlUsd: row.totalPnlUsd,
-      tradeCount: row.tradeCount,
-    })),
-  });
-};
-
 const DexTradesRoutesBaseLive = HttpApiBuilder.group(
   DexTradesApi,
   "dex-trades",
@@ -107,9 +99,13 @@ const DexTradesRoutesBaseLive = HttpApiBuilder.group(
     const service = yield* DexTradeService;
 
     return handlers.handle("leaderboard", () =>
-      service
-        .leaderboard()
-        .pipe(Effect.map(mapToLeaderboardResponse), Effect.mapError(toInternalServerErrorResponse)),
+      service.leaderboard().pipe(
+        Effect.map((leaderboard) => LeaderboardResponse.make({ leaderboard })),
+        Effect.catchTags({
+          DatabaseUnavailable: () => Effect.fail(toServiceUnavailableErrorResponse()),
+          DatabaseQueryFailed: () => Effect.fail(toInternalServerErrorResponse()),
+        }),
+      ),
     );
   }),
 );

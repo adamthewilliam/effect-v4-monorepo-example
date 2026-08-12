@@ -1,4 +1,3 @@
-import "dotenv/config";
 import { Config, Context, Effect, Layer, Schema } from "effect";
 
 export class ServerEnv extends Context.Service<ServerEnv>()("@effect-monorepo/env/ServerEnv", {

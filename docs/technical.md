@@ -64,6 +64,11 @@ bun run docker:logs
 bun run docker:down
 ```
 
+The default test suite uses explicit repository and Kafka adapters, so it is
+fast and deterministic. It does not require Postgres or Kafka. The Compose
+stack provides the manual integration smoke path for validating migrations,
+database queries, and message ingestion together.
+
 ## Effect conventions
 
 - Use `Effect.gen` and `Effect.fn` for workflows and service methods.
@@ -72,5 +77,12 @@ bun run docker:down
 - Construct live dependencies with `Layer`.
 - Keep external I/O at adapters and keep domain services independently
   testable.
+- Preserve monetary and token amounts as decimal strings; use `BigDecimal`
+  for arithmetic instead of converting through JavaScript `number`.
+- Normalize database failures to `transient`, `constraint`, or `fatal` in the
+  repository. Callers choose their own policy: HTTP maps transient failures to
+  `503`, while ingestion maps failures to `retry`, `skip`, or `halt`.
+- Keep database causes and operation metadata for internal diagnostics; never
+  expose them in HTTP error response bodies.
 - Use explicit test layers and synchronization primitives instead of timing
   assumptions.

@@ -3,6 +3,7 @@ import {
   DbPersistError,
   DexTradeRepository,
   DexTradeId,
+  PnlUsdDecimal,
   SignerAddress,
   TokenAmountDecimal,
   UsdAmountDecimal,
@@ -83,6 +84,31 @@ describe("processDexTradeBatch", () => {
     }),
   );
 
+  it.effect("turns heartbeat failures into retryable batch errors", () =>
+    Effect.gen(function* () {
+      const error = yield* Effect.flip(
+        batchEffect(
+          {
+            messages: [message("42", undefined)],
+          },
+          {
+            resolveOffset: () => undefined,
+            heartbeat: async () => {
+              throw new Error("Kafka heartbeat failed");
+            },
+            consumer: {
+              commitOffsets: async () => undefined,
+            } as unknown as Consumer,
+          },
+        ),
+      );
+
+      expect(error._tag).toBe("RetryableIngesterBatch");
+      expect(error.message).toBe("Failed to heartbeat Kafka batch");
+      expect(error.source.offset).toBe(KafkaOffset.make("42"));
+    }),
+  );
+
   it.effect("skips poison messages by resolving their offsets", () =>
     Effect.gen(function* () {
       const resolvedOffsets: string[] = [];
@@ -141,7 +167,7 @@ describe("processDexTradeBatch", () => {
               "42",
               JSON.stringify({
                 ...fixturePayload(),
-                token_sold_amount: "72.43187983",
+                token_sold_amount: "0",
               }),
             ),
           ],
@@ -198,9 +224,11 @@ describe("processDexTradeBatch", () => {
                 return Effect.fail(
                   new DbPersistError({
                     message: "Failed to persist DEX trade",
+                    operation: "upsert",
                     table: "dex_trades",
                     uniqueId: trade.uniqueId,
                     cause: new Error("database offline"),
+                    kind: "transient",
                   }),
                 );
               };
@@ -212,6 +240,48 @@ describe("processDexTradeBatch", () => {
       expect(error._tag).toBe("RetryableIngesterBatch");
       expect(resolvedOffsets).toEqual(["41"]);
       expect(committedOffsets).toEqual(["42"]);
+    }),
+  );
+
+  it.effect("halts the batch without advancing past a fatal persistence error", () =>
+    Effect.gen(function* () {
+      const resolvedOffsets: string[] = [];
+      const committedOffsets: string[] = [];
+
+      const error = yield* Effect.flip(
+        batchEffect(
+          {
+            messages: [message("42", JSON.stringify(fixturePayload()))],
+          },
+          {
+            resolveOffset: (offset) => resolvedOffsets.push(offset),
+            consumer: {
+              commitOffsets: async (
+                offsets: Array<{ topic: string; partition: number; offset: string }>,
+              ) => {
+                committedOffsets.push(offsets[0]?.offset ?? "");
+              },
+            } as unknown as Consumer,
+          },
+          {
+            upsert: (trade) =>
+              Effect.fail(
+                new DbPersistError({
+                  message: "Failed to persist DEX trade",
+                  operation: "upsert",
+                  table: "dex_trades",
+                  uniqueId: trade.uniqueId,
+                  cause: new Error("invalid SQL"),
+                  kind: "fatal",
+                }),
+              ),
+          },
+        ),
+      );
+
+      expect(error._tag).toBe("FatalIngesterBatch");
+      expect(resolvedOffsets).toEqual([]);
+      expect(committedOffsets).toEqual([]);
     }),
   );
 
@@ -249,9 +319,11 @@ describe("processDexTradeBatch", () => {
                 return Effect.fail(
                   new DbPersistError({
                     message: "Failed to persist DEX trade",
+                    operation: "upsert",
                     table: "dex_trades",
                     uniqueId: trade.uniqueId,
                     cause: new Error("database offline"),
+                    kind: "transient",
                   }),
                 );
               };
@@ -276,11 +348,12 @@ function batchEffect(
   batch: { messages: EachBatchPayload["batch"]["messages"] },
   hooks: {
     resolveOffset: (offset: string) => void;
+    heartbeat?: () => Promise<void>;
     consumer: Consumer;
   },
   repositoryOverrides: Partial<DexTradeRepository["Service"]> = {},
 ) {
-  const payload = fixtureBatchPayload(batch.messages, hooks.resolveOffset);
+  const payload = fixtureBatchPayload(batch.messages, hooks.resolveOffset, hooks.heartbeat);
 
   return processDexTradeBatch(
     { consumer: hooks.consumer, isShuttingDown: () => false },
@@ -308,6 +381,7 @@ function testLayer(overrides: Partial<DexTradeRepository["Service"]> = {}) {
 function fixtureBatchPayload(
   messages: EachBatchPayload["batch"]["messages"],
   resolveOffset: (offset: string) => void,
+  heartbeat: () => Promise<void> = async () => undefined,
 ): EachBatchPayload {
   return {
     batch: {
@@ -322,7 +396,7 @@ function fixtureBatchPayload(
       offsetLagLow: () => "0",
     },
     resolveOffset,
-    heartbeat: async () => undefined,
+    heartbeat,
     isRunning: () => true,
     isStale: () => false,
     pause: () => () => undefined,
@@ -347,12 +421,12 @@ function fixturePayload() {
     unique_id: "4d0dac4c-a2c4-41a1-86d1-b58f0bbc11e0",
     block_timestamp: "2025-07-18T20:20:24.265Z",
     signer: "AMtrZihSfHJHk6bCruZTsDtaB8nAHNYCcptFDyKZCWLU",
-    token_sold_amount: 72.43187983,
-    usd_sold_amount: 1246.98,
-    token_bought_amount: 71.3058433,
-    usd_bought_amount: 1207.83,
+    token_sold_amount: "72.43187983",
+    usd_sold_amount: "1246.98",
+    token_bought_amount: "71.3058433",
+    usd_bought_amount: "1207.83",
     aggregator: "orca",
-    tx_fee_usd: 3.24,
+    tx_fee_usd: "3.24",
   };
 }
 
@@ -369,7 +443,7 @@ function fixtureTrade(): DexTrade {
     usdBoughtAmount: UsdAmountDecimal.make("1207.83"),
     aggregator: AggregatorName.make("orca"),
     txFeeUsd: UsdAmountDecimal.make("3.24"),
-    pnlUsd: "0",
+    pnlUsd: PnlUsdDecimal.make("0"),
     createdAt: now,
     updatedAt: now,
   };

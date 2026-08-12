@@ -1,7 +1,14 @@
-import { DbPersistError, DexTradeRepository, type DexTrade } from "@effect-monorepo/db";
-import { Context, Effect, Layer } from "effect";
+import {
+  DbPersistError,
+  DexTradeRepository,
+  PnlUsdDecimal,
+  type DexTrade,
+  type NewDexTrade,
+} from "@effect-monorepo/db";
+import { BigDecimal, Context, Effect, Layer } from "effect";
 import {
   EmptyKafkaMessageError,
+  actionForDbFailure,
   IngesterPersistError,
   type IngesterError,
   type KafkaSource,
@@ -34,12 +41,11 @@ export class DexTradeIngesterService extends Context.Service<
             });
           }
 
-          const trade = yield* parseDexTradeMessage(rawMessage, source);
-          trade.pnlUsd = (
-            Number(trade.usdSoldAmount) -
-            Number(trade.usdBoughtAmount) -
-            Number(trade.txFeeUsd)
-          ).toFixed(2);
+          const parsedTrade = yield* parseDexTradeMessage(rawMessage, source);
+          const trade: NewDexTrade = {
+            ...parsedTrade,
+            pnlUsd: calculatePnlUsd(parsedTrade),
+          };
 
           const stored = yield* trades.upsert(trade).pipe(
             Effect.catchTag(
@@ -50,6 +56,7 @@ export class DexTradeIngesterService extends Context.Service<
                   source,
                   uniqueId: trade.uniqueId,
                   cause: error.cause,
+                  action: actionForDbFailure(error.kind),
                 }),
             ),
           );
@@ -67,3 +74,17 @@ export class DexTradeIngesterService extends Context.Service<
       }),
     );
 }
+
+const calculatePnlUsd = (trade: NewDexTrade): PnlUsdDecimal => {
+  const pnl = BigDecimal.subtract(
+    BigDecimal.subtract(
+      BigDecimal.fromStringUnsafe(trade.usdSoldAmount),
+      BigDecimal.fromStringUnsafe(trade.usdBoughtAmount),
+    ),
+    BigDecimal.fromStringUnsafe(trade.txFeeUsd),
+  );
+
+  return PnlUsdDecimal.make(
+    BigDecimal.format(BigDecimal.round(pnl, { scale: 2, mode: "half-from-zero" })),
+  );
+};
