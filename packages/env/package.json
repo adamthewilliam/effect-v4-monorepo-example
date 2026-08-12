@@ -1,0 +1,22 @@
+{
+  "name": "@effect-monorepo/env",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./ingester": "./src/ingester.ts",
+    "./server": "./src/server.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "dotenv": "catalog:",
+    "effect": "4.0.0-beta.93"
+  },
+  "devDependencies": {
+    "@effect-monorepo/config": "workspace:*",
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  }
+}

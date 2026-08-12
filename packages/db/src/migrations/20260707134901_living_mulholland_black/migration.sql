@@ -1,0 +1,1 @@
+ALTER TABLE "dex_trades" ADD COLUMN "pnl_usd" numeric(38,8) DEFAULT 0 NOT NULL;

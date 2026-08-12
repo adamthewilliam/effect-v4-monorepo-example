@@ -1,0 +1,3 @@
+{
+  "extends": "@effect-monorepo/config/tsconfig.base.json"
+}

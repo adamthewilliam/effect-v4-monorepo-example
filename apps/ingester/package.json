@@ -1,0 +1,26 @@
+{
+  "name": "ingester",
+  "type": "module",
+  "main": "src/ingester.ts",
+  "scripts": {
+    "build": "tsdown",
+    "check-types": "tsc --noEmit -p tsconfig.json",
+    "dev": "bun run --hot src/ingester.ts",
+    "start": "bun run dist/ingester.mjs",
+    "test": "bun test src"
+  },
+  "dependencies": {
+    "@effect-monorepo/db": "workspace:*",
+    "@effect-monorepo/env": "workspace:*",
+    "dotenv": "catalog:",
+    "effect": "4.0.0-beta.93",
+    "kafkajs": "^2.2.4"
+  },
+  "devDependencies": {
+    "@effect-monorepo/config": "workspace:*",
+    "@effect-monorepo/testing": "workspace:*",
+    "@types/bun": "catalog:",
+    "tsdown": "^0.21.9",
+    "typescript": "catalog:"
+  }
+}

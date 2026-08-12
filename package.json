@@ -1,0 +1,55 @@
+{
+  "name": "effect-monorepo",
+  "private": true,
+  "workspaces": {
+    "packages": [
+      "apps/*",
+      "packages/*"
+    ],
+    "catalog": {
+      "dotenv": "^17.2.2",
+      "typescript": "^6",
+      "@types/bun": "^1.3.4"
+    }
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "check-types": "turbo run check-types",
+    "dev:server": "turbo run dev -F server",
+    "db:push": "turbo run db:push -F @effect-monorepo/db",
+    "db:studio": "turbo run db:studio -F @effect-monorepo/db",
+    "db:generate": "turbo run db:generate -F @effect-monorepo/db",
+    "db:migrate": "turbo run db:migrate -F @effect-monorepo/db",
+    "infra:watch": "docker compose up postgres kafka",
+    "docker:up": "docker compose up -d kafka postgres",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
+    "check": "oxlint && oxfmt --check",
+    "test": "turbo run test",
+    "kafka:sample": "kcat -C -b localhost:29092 -t dex.trades -c 1 -J -q",
+    "format": "oxfmt --write",
+    "dev:ingester": "turbo run dev -F ingester",
+    "prepare": "effect-language-service patch"
+  },
+  "dependencies": {
+    "@effect-monorepo/env": "workspace:*",
+    "dotenv": "catalog:",
+    "effect": "4.0.0-beta.93"
+  },
+  "devDependencies": {
+    "@effect-monorepo/config": "workspace:*",
+    "@effect/language-service": "^0.86.4",
+    "@types/bun": "catalog:",
+    "oxfmt": "^0.53.0",
+    "oxlint": "^1.68.0",
+    "turbo": "^2.9.16",
+    "typescript": "catalog:"
+  },
+  "overrides": {
+    "drizzle-kit": "1.0.0-rc.4",
+    "drizzle-orm": "1.0.0-rc.4"
+  },
+  "packageManager": "bun@1.3.13"
+}
